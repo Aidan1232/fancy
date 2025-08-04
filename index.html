@@ -202,7 +202,7 @@
     <ul id="track-list" class="track-selector"></ul>
   </div>
 
-  <audio id="copilot-audio" crossorigin="anonymous" preload="auto"></audio>
+  <audio id="copilot-audio"></audio>
 
   <script>
     const audio = document.getElementById('copilot-audio');
@@ -244,9 +244,11 @@
     }
 
     function loadTrack(filename, title) {
+      audio.crossOrigin = "anonymous";
       audio.src = `ongs/${filename}`;
+      audio.load();
       trackTitle.textContent = `🎧 Now Spinning: ${title}`;
-      audio.play().catch(err => console.error("Playback failed", err));
+      audio.play();
     }
 
     fetch('tracks.json')
@@ -372,55 +374,58 @@
 
     // 🎵 Enhanced Visualizer with Floating Peaks
     const analyser = new (window.AudioContext || window.webkitAudioContext)();
-    const source = analyser.createMediaElementSource(audio);
-    const fft = analyser.createAnalyser();
-    source.connect(fft);
-    fft.connect(analyser.destination);
-    fft.fftSize = 128;
 
-    const bufferLength = fft.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
+    audio.addEventListener('canplaythrough', () => {
+      const source = analyser.createMediaElementSource(audio);
+      const fft = analyser.createAnalyser();
+      source.connect(fft);
+      fft.connect(analyser.destination);
+      fft.fftSize = 128;
 
-    // Track peaks for floating bars
-    const peakHeights = new Array(bufferLength).fill(0);
+      const bufferLength = fft.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
 
-    function renderVisualizer() {
-      requestAnimationFrame(renderVisualizer);
-      fft.getByteFrequencyData(dataArray);
-      canvasCtx.clearRect(0, 0, visualizer.width, visualizer.height);
+      // Track peaks for floating bars
+      const peakHeights = new Array(bufferLength).fill(0);
 
-      dataArray.forEach((v, i) => {
-        // 🌀 Bias toward highs + asymmetry lift
-        const bias = 0.5 + Math.pow(i / bufferLength, 2.1);
-        const asymmetryBoost = 1 + (i / bufferLength) * 0.1; // softened slightly
-        const boosted = v * bias * asymmetryBoost;
+      function renderVisualizer() {
+        requestAnimationFrame(renderVisualizer);
+        fft.getByteFrequencyData(dataArray);
+        canvasCtx.clearRect(0, 0, visualizer.width, visualizer.height);
 
-        // 📈 Dynamic stretch curve: sensitive at peak, softer down low
-        const stretchFactor = 1 + Math.pow(v / 255, 2.2) * 0.5;
-        const barHeight = Math.min(boosted * stretchFactor, visualizer.height - 4); // slight cushion
+        dataArray.forEach((v, i) => {
+          // 🌀 Bias toward highs + asymmetry lift
+          const bias = 0.5 + Math.pow(i / bufferLength, 2.1);
+          const asymmetryBoost = 1 + (i / bufferLength) * 0.1; // softened slightly
+          const boosted = v * bias * asymmetryBoost;
 
-        // 🎚️ Update floating peak bar
-        if (barHeight > peakHeights[i]) {
-          peakHeights[i] = barHeight;
-        } else {
-          peakHeights[i] -= 0.26; // decay speed
-          peakHeights[i] = Math.max(peakHeights[i], 0);
-        }
+          // 📈 Dynamic stretch curve: sensitive at peak, softer down low
+          const stretchFactor = 1 + Math.pow(v / 255, 2.2) * 0.5;
+          const barHeight = Math.min(boosted * stretchFactor, visualizer.height - 4); // slight cushion
 
-        const x = i * (visualizer.width / bufferLength);
-        const barWidth = visualizer.width / bufferLength - 2;
+          // 🎚️ Update floating peak bar
+          if (barHeight > peakHeights[i]) {
+            peakHeights[i] = barHeight;
+          } else {
+            peakHeights[i] -= 0.26; // decay speed
+            peakHeights[i] = Math.max(peakHeights[i], 0);
+          }
 
-        // 🎨 Main bar
-        canvasCtx.fillStyle = `rgb(${v + 120}, 0, ${255 - v})`;
-        canvasCtx.fillRect(x, visualizer.height - barHeight, barWidth, barHeight);
+          const x = i * (visualizer.width / bufferLength);
+          const barWidth = visualizer.width / bufferLength - 2;
 
-        // 🌟 Floating peak bar
-        canvasCtx.fillStyle = 'white';
-        canvasCtx.fillRect(x, visualizer.height - peakHeights[i], barWidth, 2);
-      });
-    }
+          // 🎨 Main bar
+          canvasCtx.fillStyle = `rgb(${v + 120}, 0, ${255 - v})`;
+          canvasCtx.fillRect(x, visualizer.height - barHeight, barWidth, barHeight);
 
-    renderVisualizer();
+          // 🌟 Floating peak bar
+          canvasCtx.fillStyle = 'white';
+          canvasCtx.fillRect(x, visualizer.height - peakHeights[i], barWidth, 2);
+        });
+      }
+
+      renderVisualizer(); 
+    });
   </script>
 </body>
 </html>
