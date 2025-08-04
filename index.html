@@ -244,7 +244,7 @@
     }
 
     function loadTrack(filename, title) {
-      audio.src = `Songs/${filename}?v=` + Date.now();
+      audio.src = `ongs/${filename}`;
       trackTitle.textContent = `🎧 Now Spinning: ${title}`;
       audio.play().catch(err => console.error("Playback failed", err));
     }
