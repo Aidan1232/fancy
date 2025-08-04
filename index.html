@@ -214,6 +214,7 @@
     const canvasCtx = visualizer.getContext('2d');
     const volumeSlider = document.getElementById('volume-slider');
 
+    audio.volume = volumeSlider.value;
     volumeSlider.oninput = () => {
       audio.volume = volumeSlider.value;
     };
@@ -283,7 +284,31 @@
             trackList.appendChild(li);
           });
         });
-      });
+    });
+
+    function scrollUpQuickly(duration = 300) {
+      const start = window.scrollY;
+      const startTime = performance.now();
+
+      function scrollStep(timestamp) {
+        const elapsed = timestamp - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3); // Cubic easing out
+
+        window.scrollTo(0, start * (1 - ease));
+
+        if (progress < 1) requestAnimationFrame(scrollStep);
+      }
+
+      requestAnimationFrame(scrollStep);
+    }
+
+    document.addEventListener("click", e => {
+      const li = e.target.closest("li");
+      if (li) {
+        scrollUpQuickly(200); // adjust duration to taste
+      }
+    });
 
     playBtn.onclick = () => {
       audio.play();
