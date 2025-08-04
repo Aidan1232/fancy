@@ -1,0 +1,172 @@
+body {
+    margin: 0;
+    padding: 2rem;
+    background: radial-gradient(circle at top left, #4a0080, #1e0038);
+    font-family: 'Press Start 2P', cursive;
+    color: #eee;
+    text-align: center;
+    overflow-x: hidden;
+}
+
+#copilot-player {
+    max-width: 640px;
+    margin: auto;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 16px;
+    box-shadow: 0 0 20px rgba(255, 0, 128, 0.4);
+}
+
+canvas {
+    width: 100%;
+    height: 180px;
+    background: #111;
+    border-radius: 12px;
+    box-shadow: inset 0 0 12px #ff0080;
+}
+
+.control-bar {
+    margin: 20px 0;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 1rem;
+    background: linear-gradient(145deg, #333, #222);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 0 6px #ff0080;
+    transition: transform 0.2s, box-shadow 0.3s;
+}
+
+button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 12px #ff00aa;
+}
+
+#volume-slider {
+    width: 120px;
+    background: #ff0080;
+}
+
+.track-selector {
+    list-style: none;
+    padding: 0;
+    margin-top: 20px;
+}
+
+.track-selector li {
+    cursor: pointer;
+    padding: 8px 12px;
+    margin: 6px auto;
+    border-radius: 6px;
+    background: #222;
+    color: #fff;
+    font-size: 0.95rem;
+    width: fit-content;
+    transition: background 0.3s, transform 0.2s;
+}
+
+.track-selector li:hover {
+    background: #ff0080;
+    transform: scale(1.03);
+}
+
+
+.track-selector li:hover {
+    background: #ff0080;
+    transform: scale(1.05);
+}
+
+.track-info {
+    margin-top: 16px;
+    font-size: 1.2rem;
+    color: #ff91d6;
+    text-shadow: 0 0 4px #ff0080;
+}
+
+#seek-bar-container {
+    position: relative;
+    width: 90%;
+    height: 12px;
+    background: #222;
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 12px auto;
+    box-shadow: inset 0 0 6px #ff0080;
+}
+
+#seek-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(to right, #ff0080, #7928ca);
+    transition: width 0.2s ease;
+}
+
+#time-stamp {
+    font-size: 0.95rem;
+    color: #ccc;
+    margin-top: 6px;
+    font-family: monospace;
+    text-shadow: 0 0 4px #7928ca;
+}
+
+.track-selector h3 {
+    font-size: 1rem;
+    margin-bottom: 4px;
+    color: #ff91d6;
+    text-transform: uppercase;
+    text-align: left;
+    padding-left: 10px;
+}
+
+#hover-time {
+    position: absolute;
+    bottom: 620px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    padding: 2px 6px;
+    font-size: 0.8rem;
+    border-radius: 4px;
+    pointer-events: none;
+    transform: translateX(-50%);
+    transition: opacity 0.2s ease;
+    white-space: nowrap;
+    font-family: monospace;
+    box-shadow: 0 0 4px #ff0080;
+    z-index: 100
+}
+
+#volume-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 200px;
+    height: 8px;     
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.8);
+    box-shadow: 0 0 6px #ff0080;
+    outline: none;
+    cursor: pointer;
+    margin-top: 15px;
+}
+
+#volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border: 2px solid #999;
+    border-radius: 50%;
+    transition: border-color 0.2s;
+}
+
+#volume-slider:hover::-webkit-slider-thumb {
+    border-color: #ff0080;
+}
