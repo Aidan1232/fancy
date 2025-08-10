@@ -208,41 +208,57 @@ async function loadTrackAsBlob(filename, displayTitle) {
   }
 }
 
+function renderTrackList(tracks) {
+  const trackList = document.getElementById('track-list');
+  trackList.innerHTML = "";
+
+  const grouped = {};
+
+  tracks.forEach(filename => {
+    const { artist, title, display } = formatTitle(filename);
+    const firstLetter = typeof title === 'string'
+      ? title.trim()[0]?.toUpperCase() || '#'
+      : '#';
+
+    if (!grouped[firstLetter]) grouped[firstLetter] = [];
+    grouped[firstLetter].push({ filename, display });
+  });
+
+  Object.keys(grouped).sort().forEach(letter => {
+    const header = document.createElement('h3');
+    header.textContent = letter;
+    header.style.marginTop = "20px";
+    header.style.color = "#ff91d6";
+    header.style.textShadow = "0 0 4px #ff0080";
+    trackList.appendChild(header);
+
+    grouped[letter].forEach(({ filename, display }) => {
+      const li = document.createElement('li');
+      li.textContent = display;
+      li.onclick = () => loadTrackAsBlob(filename, display);
+      trackList.appendChild(li);
+    });
+  });
+}
+
+let allTracks = [];
+
 fetch('tracks.json')
-    .then(res => res.json())
-    .then(tracks => {
-    const trackList = document.getElementById('track-list');
-    trackList.innerHTML = "";
+  .then(res => res.json())
+  .then(tracks => {
+    allTracks = tracks;
+    renderTrackList(allTracks);
+});
 
-    // Group tracks by first letter
-    const grouped = {};
-    tracks.forEach(filename => {
-        const { artist, title, display } = formatTitle(filename);
+document.getElementById('track-search').addEventListener('input', e => {
+  const query = e.target.value.toLowerCase();
 
-        const firstLetter = typeof title === 'string'
-        ? title.trim()[0]?.toUpperCase() || '#'
-        : '#'; // fallback for safety
+  const filtered = allTracks.filter(filename => {
+    const { display } = formatTitle(filename);
+    return display.toLowerCase().includes(query);
+  });
 
-        if (!grouped[firstLetter]) grouped[firstLetter] = [];
-        grouped[firstLetter].push({ filename, display });
-    });
-
-    // Render groups alphabetically
-    Object.keys(grouped).sort().forEach(letter => {
-        const header = document.createElement('h3');
-        header.textContent = letter;
-        header.style.marginTop = "20px";
-        header.style.color = "#ff91d6";
-        header.style.textShadow = "0 0 4px #ff0080";
-        trackList.appendChild(header);
-
-        grouped[letter].forEach(({ filename, display }) => {
-            const li = document.createElement('li');
-            li.textContent = display; // This shows "Song Name — Artist"
-            li.onclick = () => loadTrackAsBlob(filename, display);
-            trackList.appendChild(li);
-        });
-    });
+  renderTrackList(filtered);
 });
 
 function scrollUpQuickly(duration = 300) {
