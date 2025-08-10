@@ -6,12 +6,22 @@ const trackTitle = document.getElementById('track-title');
 const visualizer = document.getElementById('copilot-visualizer');
 const canvasCtx = visualizer.getContext('2d');
 const volumeSlider = document.getElementById('volume-slider');
+const fullscreenToggle = document.getElementById('fullscreenToggle');
+const hoverTime = document.getElementById('hover-time');
+const seekBar = document.getElementById('seek-bar-container');
 
 audio.volume = volumeSlider.value;
 volumeSlider.oninput = () => {
     audio.volume = volumeSlider.value;
 };
 
+fullscreenToggle.addEventListener('click', () => {
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else {
+    visualizer.requestFullscreen();
+  }
+});
 
 function formatTitle(filename) {
     const raw = filename.replace('.mp3', '').trim();
@@ -30,29 +40,168 @@ function formatTitle(filename) {
     const title = parts.slice(1).join('-').replace(/_/g, ' ').trim(); // handles multiple dashes
 
     return {
-    artist,
-    title,
-    display: `${title} — ${artist}`
+        artist,
+        title,
+        display: `${title} — ${artist}`
     };
 }
 
+let fullscreenListenerAdded = false;
+let visualizerFrameId = null;
 async function loadTrackAsBlob(filename, displayTitle) {
   try {
-    const res = await fetch(`ongs/${filename}`);
-    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-
-    const blob = await res.blob();
-    const blobURL = URL.createObjectURL(blob);
-
-    audio.src = blobURL;
-    audio.crossOrigin = "anonymous"; // good practice even with blob
+    const audioPath = `ongs/${filename}`;
+    audio.src = audioPath;
+    audio.crossOrigin = "anonymous";
     audio.load();
-    trackTitle.textContent = `🎧 Now Spinning: ${displayTitle}`;
-    audio.play();
 
-    // Optional: store blobURL for future cleanup
-    if (window.currentBlobURL) URL.revokeObjectURL(window.currentBlobURL);
-    window.currentBlobURL = blobURL;
+    trackTitle.textContent = `🎧 Now Spinning: ${displayTitle}`;
+
+    // 🔄 Reset previous source if needed
+    if (source) {
+      source.disconnect();
+      fft.disconnect();
+      source = null;
+      fft = null;
+    }
+
+    // 🔊 Create new source + analyser
+    source = analyser.createMediaElementSource(audio);
+    fft = analyser.createAnalyser();
+    source.connect(fft);
+    fft.connect(analyser.destination);
+    fft.fftSize = 128;
+
+    const bufferLength = fft.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    const peakHeights = new Array(bufferLength).fill(0);
+    let edgePulseIntensity = 0;
+
+    if (visualizerFrameId) {
+        cancelAnimationFrame(visualizerFrameId);
+        visualizerFrameId = null;
+    }
+
+    function renderVisualizer() {
+        visualizerFrameId = requestAnimationFrame(renderVisualizer);
+
+        if (!fft || !dataArray) return;
+        fft.getByteFrequencyData(dataArray);
+
+        canvasCtx.setTransform(1, 0, 0, 1, 0, 0);
+        canvasCtx.clearRect(0, 0, visualizer.width, visualizer.height);
+
+        const scale = window.devicePixelRatio;
+        const width = visualizer.clientWidth;
+        const height = visualizer.clientHeight;
+
+        visualizer.width = width * scale;
+        visualizer.height = height * scale;
+        canvasCtx.scale(scale, scale);
+
+        const spacing = 1;
+        const barCount = bufferLength;
+        const barWidth = Math.floor((width - spacing * (barCount - 1)) / barCount * 1.25);
+
+        for (let i = 0; i < barCount; i++) {
+            const v = dataArray[i];
+            const bias = 0.5 + Math.pow(i / barCount, 2.1);
+            const asymmetryBoost = 1 + (i / barCount) * 0.1;
+
+            const isLeftSide = i < barCount / 2;
+            const leftRebalance = isLeftSide ? 1 + (1 - i / (barCount / 2)) * 0.16 : 1;
+
+            const boosted = v * bias * asymmetryBoost * leftRebalance;
+            const stretchFactor = 1 + Math.pow(v / 255, 2.2) * 0.5;
+            const fullscreenBoost = isFullscreen() ? 1.9 : 0.9;
+            const heightBoost = Math.max(height / 400, 1.0);
+            const barHeight = Math.min(boosted * stretchFactor * fullscreenBoost * heightBoost, height - 4);
+
+            // ⛰️ Track peaks
+            if (barHeight > peakHeights[i]) {
+                peakHeights[i] = barHeight;
+            } else {
+                peakHeights[i] -= 0.26;
+                peakHeights[i] = Math.max(peakHeights[i], 0);
+                peakHeights[i] = Math.min(peakHeights[i], height - 2);
+            }
+
+            // 💥 Trigger pulse only from middle bars
+            const centerRange = isFullscreen() ? 0.30 : 0.23; // central 5%
+            const isMiddleBar = i >= barCount * (0.5 - centerRange) && i <= barCount * (0.5 + centerRange);
+            if (isMiddleBar && barHeight >= height - 4) {
+                edgePulseIntensity = Math.min(1, edgePulseIntensity + 0.3);
+            }
+
+            const x = i * (barWidth + spacing);
+
+            canvasCtx.fillStyle = `rgb(${v + 120}, 0, ${255 - v})`;
+            canvasCtx.fillRect(x, height - barHeight, barWidth, barHeight);
+
+            canvasCtx.fillStyle = '#7928ca';
+            canvasCtx.fillRect(x, height - peakHeights[i], barWidth, 2);
+        }
+
+        // 🌈 Render edge pulse
+        if (edgePulseIntensity > 0) {
+            canvasCtx.save();
+            canvasCtx.globalAlpha = edgePulseIntensity * 0.3;
+
+            const maxGlowWidth = width * 0.4;
+            const glowWidth = maxGlowWidth * edgePulseIntensity;
+
+            const gradientLeft = canvasCtx.createLinearGradient(0, 0, glowWidth, 0);
+            gradientLeft.addColorStop(0, '#7928ca');
+            gradientLeft.addColorStop(1, 'rgba(255, 0, 128, 0)');
+
+            const gradientRight = canvasCtx.createLinearGradient(width, 0, width - glowWidth, 0);
+            gradientRight.addColorStop(0, '#7928ca');
+            gradientRight.addColorStop(1, 'rgba(255, 0, 128, 0)');
+
+            const gradientTop = canvasCtx.createLinearGradient(0, 0, 0, glowWidth);
+            gradientTop.addColorStop(0, '#7928ca');
+            gradientTop.addColorStop(1, 'rgba(255, 0, 128, 0)');
+
+            const gradientBottom = canvasCtx.createLinearGradient(0, height, 0, height - glowWidth);
+            gradientBottom.addColorStop(0, '#7928ca');
+            gradientBottom.addColorStop(1, 'rgba(255, 0, 128, 0)');
+
+            canvasCtx.fillStyle = gradientLeft;
+            canvasCtx.fillRect(0, 0, glowWidth, height);
+
+            canvasCtx.fillStyle = gradientRight;
+            canvasCtx.fillRect(width - glowWidth, 0, glowWidth, height);
+
+            canvasCtx.fillStyle = gradientTop;
+            canvasCtx.fillRect(0, 0, width, glowWidth);
+
+            canvasCtx.fillStyle = gradientBottom;
+            canvasCtx.fillRect(0, height - glowWidth, width, glowWidth);
+
+            canvasCtx.restore();
+            edgePulseIntensity -= 0.02;
+        }
+    }
+
+    renderVisualizer();
+
+    if (analyser.state === "suspended") {
+        await analyser.resume();
+        console.log("🔊 AudioContext resumed");
+    }
+
+    if (!fullscreenListenerAdded) {
+        document.addEventListener('fullscreenchange', () => {
+            if (!isFullscreen() && Array.isArray(peakHeights)) {
+            for (let i = 0; i < peakHeights.length; i++) {
+                peakHeights[i] = 0;
+            }
+            }
+        });
+        fullscreenListenerAdded = true;
+    }
+
+    await audio.play();
   } catch (err) {
     trackTitle.textContent = `⚠️ Load failed: ${filename}`;
     console.error(err);
@@ -119,15 +268,29 @@ document.addEventListener("click", e => {
     }
 });
 
-playBtn.onclick = () => {
-    audio.play();
-    const rawName = audio.src.split('/').pop().replace('.mp3', '');
-    const cleanedName = rawName.replace(/_/g, ' ').replace(/-/g, ' - ');
-    const [artist, title] = cleanedName.split(' - ').map(s => s.trim());
+window.addEventListener("DOMContentLoaded", () => {
+  const playBtn = document.getElementById("play-btn");
+  const audio = document.getElementById('copilot-audio');
 
-    const displayName = `🎧 Now Spinning: ${title} — ${artist}`;
-    trackTitle.textContent = displayName;
-};
+  playBtn.onclick = async () => {
+    console.log("🔘 Button clicked");
+
+    try {
+      if (typeof audioCtx !== "undefined" && audioCtx.state === "suspended") {
+        await audioCtx.resume();
+        console.log("🔊 AudioContext resumed");
+      }
+
+      audio.volume = 1;
+      audio.muted = false;
+
+      await audio.play();
+      console.log("✅ Playback started");
+    } catch (err) {
+      console.error("❌ Playback failed:", err);
+    }
+  };
+});
 
 pauseBtn.onclick = () => {
     audio.pause();
@@ -148,11 +311,8 @@ audio.ontimeupdate = () => {
 
     const current = formatTime(audio.currentTime);
     const total = formatTime(audio.duration);
-    document.getElementById('time-stamp').textContent = `⏱️ ${current} / ${total}`;
+    document.getElementById('time-stamp').textContent = `${current} / ${total}`;
 };
-
-const hoverTime = document.getElementById('hover-time');
-const seekBar = document.getElementById('seek-bar-container');
 
 seekBar.addEventListener('mousemove', (e) => {
     const rect = seekBar.getBoundingClientRect();
@@ -162,7 +322,7 @@ seekBar.addEventListener('mousemove', (e) => {
 
     if (!isNaN(previewTime)) {
     hoverTime.textContent = formatTime(previewTime);
-    const mouseX = e.clientX - rect.left + 640;
+    const mouseX = e.clientX - rect.left + 640; // default 640 
     hoverTime.style.left = `${mouseX}px`;
     hoverTime.style.display = 'block';
     }
@@ -181,54 +341,9 @@ seekBar.addEventListener('click', (e) => {
 
 // 🎵 Enhanced Visualizer with Floating Peaks
 const analyser = new (window.AudioContext || window.webkitAudioContext)();
+let source;
+let fft;
 
-audio.addEventListener('canplaythrough', () => {
-    const source = analyser.createMediaElementSource(audio);
-    const fft = analyser.createAnalyser();
-    source.connect(fft);
-    fft.connect(analyser.destination);
-    fft.fftSize = 128;
-
-    const bufferLength = fft.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-
-    // Track peaks for floating bars
-    const peakHeights = new Array(bufferLength).fill(0);
-
-    function renderVisualizer() {
-        requestAnimationFrame(renderVisualizer);
-        fft.getByteFrequencyData(dataArray);
-        canvasCtx.clearRect(0, 0, visualizer.width, visualizer.height);
-
-        dataArray.forEach((v, i) => {
-            // 🌀 Bias toward highs + asymmetry lift
-            const bias = 0.5 + Math.pow(i / bufferLength, 2.1);
-            const asymmetryBoost = 1 + (i / bufferLength) * 0.1; // softened slightly
-            const boosted = v * bias * asymmetryBoost;
-
-            // 📈 Dynamic stretch curve: sensitive at peak, softer down low
-            const stretchFactor = 1 + Math.pow(v / 255, 2.2) * 0.5;
-            const barHeight = Math.min(boosted * stretchFactor, visualizer.height - 4); // slight cushion
-
-            // 🎚️ Update floating peak bar
-            if (barHeight > peakHeights[i]) {
-                peakHeights[i] = barHeight;
-            } else {
-                peakHeights[i] -= 0.26; // decay speed
-                peakHeights[i] = Math.max(peakHeights[i], 0);
-            }
-
-            const x = i * (visualizer.width / bufferLength);
-            const barWidth = visualizer.width / bufferLength - 2;
-
-            // 🎨 Main bar
-            canvasCtx.fillStyle = `rgb(${v + 120}, 0, ${255 - v})`;
-            canvasCtx.fillRect(x, visualizer.height - barHeight, barWidth, barHeight);
-
-            // 🌟 Floating peak bar
-            canvasCtx.fillStyle = 'white';
-            canvasCtx.fillRect(x, visualizer.height - peakHeights[i], barWidth, 2);
-        });
-    }
-    renderVisualizer(); 
-});
+function isFullscreen() {
+  return document.fullscreenElement != null;
+}

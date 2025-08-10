@@ -12,7 +12,7 @@
     <div class="visualizer-container">
       <canvas id="copilot-visualizer"></canvas>
     </div>
-
+    <button id="fullscreenToggle">🔍 Fullscreen</button>
     <div class="control-bar">
       <button id="play-btn">▶️ Play</button>
       <button id="pause-btn">⏸️ Pause</button>
@@ -22,14 +22,14 @@
         <div id="seek-bar-fill"></div>
       </div>
       <div id="hover-time" style="display: none;">00:00</div>
-      <p id="time-stamp">⏱️ 00:00 / 00:00</p>
+      <p id="time-stamp">00:00 / 00:00</p>
     </div>
 
     <p class="track-info">Now Spinning: <span id="track-title">—</span></p>
     <ul id="track-list" class="track-selector"></ul>
   </div>
 
-  <audio id="copilot-audio" preload="auto"></audio>
+  <audio id="copilot-audio"></audio>
   <script src="script.js"></script>
 </body>
 </html>
